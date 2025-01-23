@@ -1,0 +1,7 @@
+# igonre ny_taxi_postgres_data folder
+ny_taxi_postgres_data/
+.ipynb_checkpoints/
+# ignore .csv files
+*.csv
+*.parquet
+
