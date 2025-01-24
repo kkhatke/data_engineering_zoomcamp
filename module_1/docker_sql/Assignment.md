@@ -12,8 +12,8 @@ hostname of database is db and hostname of container is 5432
 
 # Question 3
 104830	198995	109642	27686	35201
-
-`SELECT
+```SQL
+SELECT
   SUM(
   	CASE 
 	  WHEN trip_distance <= 1 THEN 1 
@@ -44,12 +44,13 @@ hostname of database is db and hostname of container is 5432
 	END) AS over_10_miles
 FROM green_taxi_data
 WHERE lpep_pickup_datetime >= '2019-10-01' 
-AND lpep_pickup_datetime < '2019-11-01';`
+AND lpep_pickup_datetime < '2019-11-01';
+```
 
 # Question 4
 "2019-10-31"	515.89
-
-`WITH daily_maximum_distance AS (
+```SQL
+WITH daily_maximum_distance AS (
 	    SELECT
 	        DATE(lpep_pickup_datetime) AS pickup_day,
 	        MAX(trip_distance) AS max_distance
@@ -62,4 +63,5 @@ SELECT
     max_distance
 FROM daily_maximum_distance
 ORDER BY max_distance DESC
-LIMIT 1;`
+LIMIT 1;
+```
