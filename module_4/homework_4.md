@@ -1,4 +1,4 @@
-# Kayla Tinker HW #4 Answers
+HW #4 Answers
 
 For this homework, you will need the following datasets:
 * [Green Taxi dataset (2019 and 2020)](https://github.com/DataTalksClub/nyc-tlc-data/releases/tag/green)
