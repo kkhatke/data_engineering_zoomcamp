@@ -1,13 +1,5 @@
 HW #4 Answers
 
-For this homework, you will need the following datasets:
-* [Green Taxi dataset (2019 and 2020)](https://github.com/DataTalksClub/nyc-tlc-data/releases/tag/green)
-* [Yellow Taxi dataset (2019 and 2020)](https://github.com/DataTalksClub/nyc-tlc-data/releases/tag/yellow)
-* [For Hire Vehicle dataset (2019)](https://github.com/DataTalksClub/nyc-tlc-data/releases/tag/fhv)
-
-:bulb: I used url2bucket.py to grab data and placed into GCP buckets. Then used sql from module 3 video 1 to add external
-tables into BigQuery and recopied those over.
-
 ### Question 1: Understanding dbt model resolution
 
 Provided you've got the following sources.yaml
@@ -41,15 +33,6 @@ from {{ source('raw_nyc_tripdata', 'ext_green_taxi' ) }}
 - `select * from myproject.my_nyc_tripdata.ext_green_taxi`
 - `select * from dtc_zoomcamp_2025.raw_nyc_tripdata.green_taxi`
 
-As In BigQuery, the terms project and database are interchangeable. So
-your database name would be `dtc_zoomcamp_2025`, but the export takes priority, thus it
-will be `myproject`. Which in our examples we work under the same project, so I am unsure why
-we would want to change it, but according to the links below that is what export does. Then the model output, wouldn't
-live where your raw data does, so that would be what you call `my_nyc_tripdata`.
-And with the information given, the only table name is `ext_green_taxi`.
-Ok, so we are setting our env_var using `export` here according to
-https://stackoverflow.com/questions/72956095/dbt-environment-variables-and-running-dbt
-https://docs.getdbt.com/docs/build/environment-variables
 
 #### ANSWER 
 **`select * from myproject.my_nyc_tripdata.ext_green_taxi`**
@@ -76,14 +59,6 @@ What would you change to accomplish that in a such way that command line argumen
 - Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ var("days_back", env_var("DAYS_BACK", "30")) }}' DAY`
 - Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ env_var("DAYS_BACK", var("days_back", "30")) }}' DAY`
 
-To set variables we use `var`, and we can set a default if the variable isn't
-provided, so that default here could be `30`. BUT we want the env_var
-to take precedence over the Default value, thus we use env_var for it. 
-From CLI, we need --var, thus we need to use var to 'override' the above options. This is 
-somewhat shown in video 4.3.1 min 38, but env_var is not discussed and needs to be found in dtb
-documentation - https://docs.getdbt.com/reference/dbt-jinja-functions/env_var
-and https://docs.getdbt.com/docs/build/environment-variables
-
 #### ANSWER 
 **Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ var("days_back", env_var("DAYS_BACK", "30")) }}' DAY**
 
@@ -102,7 +77,6 @@ materializing `fct_taxi_monthly_zone_revenue`:
 - `dbt run --select +models/core/`
 - `dbt run --select models/staging/+`
 
-key work 'materialized'. So I am thinking it would be the /staging/+
 
 #### ANSWER 
 **`dbt run --select models/staging/+`*
@@ -197,43 +171,6 @@ Now, what are the values of `p97`, `p95`, `p90` for Green Taxi and Yellow Taxi, 
 #### ANSWER 
 **green: {p97: 55.0, p95: 45.0, p90: 26.5}, yellow: {p97: 31.5, p95: 25.5, p90: 19.0}**
 
-```sql
--- in Cloud IDE DBT (AI support)
-WITH clean_fact_trips AS (
-    SELECT
-        service_type,
-        EXTRACT(YEAR FROM pickup_datetime) AS year,
-        EXTRACT(MONTH FROM pickup_datetime) AS month,
-        fare_amount,
-        trip_distance,
-        payment_type_description
-    FROM {{ ref('fact_trips') }}
-    WHERE
-        fare_amount > 0
-        AND trip_distance > 0
-        AND lower(payment_type_description) in ('cash', 'credit card')
-),
-
-fare_amt_perc AS(
-    SELECT
-        service_type,
-        year,
-        month,
-        PERCENTILE_CONT(fare_amount, 0.97) OVER (PARTITION BY service_type, year, month) AS p97,
-        PERCENTILE_CONT(fare_amount, 0.95) OVER (PARTITION BY service_type, year, month) AS p95,
-        PERCENTILE_CONT(fare_amount, 0.90) OVER (PARTITION BY service_type, year, month) AS p90
-    FROM clean_fact_trips
-)
-
-SELECT * FROM fare_amt_perc
-
--- In BigQuery
-SELECT service_type, year, month, p97, p95, p90
-FROM `taxi-rides-ny-448101.module_4_dbt_model.fact_taxi_trips_monthly_p95`
-WHERE year = 2020 and month = 4
-GROUP BY service_type, year, month, p97, p95, p90
-```
-
 
 ### Question 7: Top #Nth longest P90 travel time Location for FHV
 
@@ -264,150 +201,3 @@ and `Yorkville East`, in November 2019, what are **dropoff_zones** with the
 
 #### ANSWER 
 **LaGuardia Airport, Chinatown, Garment District**
-
-```sql
--- Staging Schema add
-version: 2
-
-sources:
-  - name: staging
-    database: "{{ env_var('DBT_DATABASE', 'taxi-rides-ny-448101') }}"
-    schema: "{{ env_var('DBT_SCHEMA', 'module_4_dbt') }}"
-      # loaded_at_field: record_loaded_at
-      # Change DB to now 'module_4_dbt' from trips_data_all
-    tables:
-      - name: green_tripdata
-      - name: fhv_tripdata
-      # for homework p#7
-      - name: yellow_tripdata
-         # freshness:
-           # error_after: {count: 6, period: hour}
-
-
-models:
-    - name: stg_fhv_tripdata
-      description: >
-        Trip made by fhv, also known as for-hire vehicles.
-        The records were collected and provided to the NYC Taxi and Limousine Commission (TLC) by
-        technology service providers.
-      columns:
-          - name: dispatching_base_num
-            description: dispatching_base_num
-          - name: pickup_datetime
-            description: The date and time when the meter was engaged.
-          - name: dropOff_datetime
-            description: The date and time when the meter was disengaged.
-          - name: Affiliated_base_numbe
-            description: Affiliated_base_numbe
-          - name: PUlocationID
-            description: locationid where the meter was engaged.
-            tests:
-              - relationships:
-                  to: ref('taxi_zone_lookup')
-                  field: locationid
-                  severity: warn
-          - name: DOlocationID
-            description: locationid where the meter was engaged.
-            tests:
-              - relationships:
-                  to: ref('taxi_zone_lookup')
-                  field: locationid
-          - name: SR_Flag
-            description: >
-              This flag indicates ?
-                Y =
-                N =
-
--- Create stg_fhv_tripdata.sql
-{{
-    config(
-        materialized='view'
-    )
-}}
-
-with tripdata as
-(
-  select *,
-  from {{ source('staging','fhv_tripdata') }}
-  where dispatching_base_num is not null
-)
-select
-    -- identifiers
-    {{ dbt_utils.generate_surrogate_key(['dispatching_base_num', 'pickup_datetime']) }} as tripid,
-    {{ dbt.safe_cast("dispatching_base_num", api.Column.translate_type("integer")) }} as dispatchid,
-    {{ dbt.safe_cast("Affiliated_base_number", api.Column.translate_type("integer")) }} as affilid,
-    {{ dbt.safe_cast("PUlocationID", api.Column.translate_type("integer")) }} as pickup_locationid,
-    {{ dbt.safe_cast("DOlocationID", api.Column.translate_type("integer")) }} as dropoff_locationid,
-
-    -- timestamps
-    cast(pickup_datetime as timestamp) as pickup_datetime,
-    cast(dropOff_datetime as timestamp) as dropoff_datetime,
-
-    -- trip info
-    SR_Flag,
-
-from tripdata
-
--- Create dim_fhv_trips.sql in core
-{{
-    config(
-        materialized='table'
-    )
-}}
-
--- join dim_zones and Add some new dimensions `year` (e.g.: 2019) and `month` (e.g.: 1, 2, ..., 12),
--- based on `pickup_datetime`
-
-with fhv_tripdata as (
-    select *
-    from {{ ref('stg_fhv_tripdata') }}
-),
-dim_zones as (
-    select * from {{ ref('dim_zones') }}
-    where borough != 'Unknown'
-)
-select
-    EXTRACT(YEAR FROM fhv_tripdata.pickup_datetime) AS year,
-    EXTRACT(MONTH FROM fhv_tripdata.pickup_datetime) AS month,
-    fhv_tripdata.pickup_datetime,
-    fhv_tripdata.dropoff_datetime,
-    fhv_tripdata.tripid,
-    fhv_tripdata.dispatchid,
-    fhv_tripdata.affilid,
-    fhv_tripdata.pickup_locationid,
-    fhv_tripdata.dropoff_locationid,
-    fhv_tripdata.SR_Flag,
-    pickup_zone.borough as pickup_borough,
-    pickup_zone.zone as pickup_zone,
-    dropoff_zone.borough as dropoff_borough,
-    dropoff_zone.zone as dropoff_zone
-from fhv_tripdata
-inner join dim_zones as pickup_zone
-on fhv_tripdata.pickup_locationid = pickup_zone.locationid
-inner join dim_zones as dropoff_zone
-on fhv_tripdata.dropoff_locationid = dropoff_zone.locationid
-
-
--- Create fct_fhv_monthly_zone_traveltime_p90.sql
-WITH trip_dur_perc AS (
-    SELECT
-        pickup_zone,
-        dropoff_zone,
-        year,
-        month,
-        PERCENTILE_CONT(TIMESTAMP_DIFF(pickup_datetime, dropoff_datetime, SECOND), 0.90) OVER (PARTITION BY year, month, pickup_locationid, dropoff_locationid) AS p90
-    FROM {{ ref('dim_fhv_trips') }}
-)
-
--- Compute the **continous** `p90` of `trip_duration` partitioning by
--- year, month, pickup_location_id, and dropoff_location_id
-
-SELECT * FROM trip_dur_perc
-
--- Query
-SELECT *
-FROM `taxi-rides-ny-448101.module_4_dbt_model.fct_fhv_monthly_zone_traveltime_p90`
-WHERE pickup_zone IN ('SoHo') AND year = 2019 and month = 11
-ORDER BY p90 DESC
-LIMIT 100;
-```
